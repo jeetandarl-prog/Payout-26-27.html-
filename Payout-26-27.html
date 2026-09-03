@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Zone & Retailer Wise Payout Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js & DataLabels Plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    * { -webkit-tap-highlight-color: transparent; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    th, td { white-space: nowrap; }
+    .custom-scroll::-webkit-scrollbar { height: 5px; width: 5px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+    .tab-btn.active {
+      background-color: #ffffff;
+      color: #0b2861;
+      font-weight: 800;
+      border-bottom: 3px solid #f97316;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 p-2 sm:p-5 text-slate-800 antialiased">
+
+  <!-- Zone-Wise Login Modal Overlay (Always Visible on Fresh Launch) -->
+  <div id="authOverlay" class="fixed inset-0 bg-[#0b2861] z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center space-y-4">
+      <div class="w-16 h-16 bg-blue-50 text-[#0b2861] rounded-2xl mx-auto flex items-center justify-center text-2xl shadow-inner">
+        <i class="fa-solid fa-user-shield"></i>
+      </div>
+      <div>
+        <h2 class="text-lg font-black text-slate-800">Zone-Wise Protected Access</h2>
+        <p class="text-xs text-slate-500 mt-1">Dashboard open karne ke liye apna Passcode dalein</p>
+      </div>
+      <div class="space-y-2">
+        <input type="password" id="passcodeInput" placeholder="Enter Zone Passcode" class="w-full text-center tracking-wider text-base font-bold bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition" autocomplete="off" />
+        <p id="authError" class="text-rose-600 text-[11px] font-bold hidden"><i class="fa-solid fa-circle-exclamation mr-1"></i> Galat Passcode! Apna Zone Passcode dalein.</p>
+      </div>
+      <button onclick="checkZoneAccess()" class="w-full bg-[#0b2861] hover:bg-[#113274] active:scale-95 text-white font-bold py-2.5 rounded-xl shadow transition text-xs sm:text-sm flex items-center justify-center gap-2">
+        <span>Unlock Zone Data</span> <i class="fa-solid fa-arrow-right text-xs"></i>
+      </button>
+      <div class="text-[10px] text-slate-400 border-t pt-2.5">
+        Admin: <b>admin@2026</b> • Zone Passcodes: <b>zone1@123</b> to <b>zone9@123</b>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fast Loader Overlay -->
+  <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white hidden">
+    <div class="w-12 h-12 border-4 border-white/20 border-t-amber-400 rounded-full animate-spin mb-3"></div>
+    <div class="text-sm font-bold tracking-wide">Processing Data...</div>
+    <div class="text-[11px] text-blue-200">Optimizing Performance</div>
+  </div>
+
+  <!-- Main Dashboard Wrapped in Blur by Default -->
+  <div id="mainDashboard" class="max-w-[1650px] mx-auto space-y-3 filter blur-sm transition-all duration-300">
+
+    <!-- Top Header Bar -->
+    <div class="bg-[#0b2861] rounded-2xl p-3 sm:p-4 text-white flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-md">
+      <div class="flex items-center gap-2.5">
+        <div class="bg-gradient-to-tr from-blue-500 to-amber-500 p-2 rounded-xl text-white shadow shrink-0">
+          <i class="fa-solid fa-chart-line text-lg sm:text-2xl"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm sm:text-lg font-black tracking-wide leading-tight">PAYOUT PERFORMANCE DASHBOARD</h1>
+            <span id="zoneAccessBadge" class="bg-amber-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">All Zones</span>
+          </div>
+          <p class="text-[10px] sm:text-xs text-blue-200">Financial Year 2026-2027 • Strict Security Locked</p>
+        </div>
+      </div>
+      
+      <!-- Actions -->
+      <div class="flex items-center gap-2 w-full md:w-auto">
+        <label class="bg-emerald-600 active:bg-emerald-700 hover:bg-emerald-500 text-white rounded-xl px-3 py-2 cursor-pointer font-bold flex items-center justify-center gap-1.5 shadow transition text-[11px] sm:text-xs flex-1 md:flex-initial">
+          <i class="fa-solid fa-file-excel text-sm"></i> 1. Upload Excel
+          <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="hidden" />
+        </label>
+
+        <button onclick="exportStandaloneHTML()" class="bg-blue-600 active:bg-blue-700 hover:bg-blue-500 text-white rounded-xl px-3 py-2 font-bold flex items-center justify-center gap-1.5 shadow transition text-[11px] sm:text-xs flex-1 md:flex-initial">
+          <i class="fa-solid fa-share-nodes text-sm"></i> 2. Save & Share
+        </button>
+
+        <button onclick="logoutZone()" title="Lock / Logout" class="bg-slate-700 hover:bg-rose-600 text-white rounded-xl px-2.5 py-2 font-bold transition text-xs shrink-0">
+          <i class="fa-solid fa-lock"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center bg-slate-200 p-1 rounded-xl gap-1 w-full sm:w-fit border border-slate-300 shadow-inner">
+      <button id="tabBtn1" onclick="switchTab(1)" class="tab-btn active px-3 sm:px-4 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-700 flex-1 sm:flex-initial">
+        <i class="fa-solid fa-map-location-dot"></i> Sheet 1: Zone Wise Summary
+      </button>
+      <button id="tabBtn2" onclick="switchTab(2)" class="tab-btn px-3 sm:px-4 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1.5 text-slate-700 flex-1 sm:flex-initial">
+        <i class="fa-solid fa-store"></i> Sheet 2: Retailer Wise (Direct Summary)
+      </button>
+    </div>
+
+    <!-- ==================== TAB 1: ZONE WISE DASHBOARD ==================== -->
+    <div id="tabContent1" class="space-y-3">
+      
+      <!-- Tab 1 Filters -->
+      <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs shadow-sm">
+        <div class="flex items-center gap-2 w-full sm:w-auto">
+          <div class="bg-slate-50 rounded-lg px-2.5 py-1 flex flex-col justify-center border flex-1 sm:flex-initial">
+            <span class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase">Month (Col E)</span>
+            <select id="t1_monthFilter" class="font-bold text-[11px] sm:text-xs bg-transparent outline-none cursor-pointer">
+              <option value="ALL">All Months</option>
+            </select>
+          </div>
+
+          <div id="t1_zoneFilterContainer" class="bg-slate-50 rounded-lg px-2.5 py-1 flex flex-col justify-center border flex-1 sm:flex-initial">
+            <span class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase">Zone (Col D)</span>
+            <select id="t1_zoneFilter" class="font-bold text-[11px] sm:text-xs bg-transparent outline-none cursor-pointer">
+              <option value="ALL">All Zones</option>
+            </select>
+          </div>
+        </div>
+
+        <button onclick="resetTab1Filters()" class="bg-slate-700 active:bg-slate-800 text-white rounded-lg px-3 py-1.5 font-bold flex items-center gap-1 transition text-xs w-full sm:w-auto justify-center">
+          <i class="fa-solid fa-rotate-right"></i> Reset Filters
+        </button>
+      </div>
+
+      <!-- KPI Cards Grid -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+        <div class="bg-[#0b2861] text-white rounded-xl p-2.5 sm:p-3 flex flex-col justify-between shadow">
+          <div class="border-b border-blue-900/70 pb-1 flex justify-between items-center">
+            <span class="text-[9px] font-bold tracking-wider text-blue-200 uppercase">OVERVIEW</span>
+            <span class="text-[9px] bg-blue-800 px-1.5 py-0.5 rounded text-blue-100 font-bold" id="t1_kpiStoreCount">0 Avg Stores</span>
+          </div>
+          <div class="my-1.5">
+            <div class="text-base sm:text-lg font-black" id="t1_kpiTotalSale">₹0.00 <span class="text-[10px] font-normal">CR</span></div>
+            <div class="text-[9px] text-blue-200">TOTAL SALE (Col K)</div>
+          </div>
+          <div class="text-[9px] bg-white/10 rounded px-1.5 py-0.5 text-center font-medium truncate">
+            Target: <span id="t1_kpiTargetSub" class="font-bold text-amber-300">₹0.00 CR</span>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-2.5 sm:p-3 flex flex-col justify-between shadow-sm border border-slate-200">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[9px] font-bold text-slate-400 uppercase">TARGET (Col H)</span>
+              <i class="fa-solid fa-bullseye text-emerald-500 text-sm"></i>
+            </div>
+            <div class="text-base sm:text-lg font-bold mt-0.5 text-slate-800" id="t1_kpiTarget">₹0.00 <span class="text-[10px] font-normal text-slate-500">CR</span></div>
+          </div>
+          <div class="border-t border-dashed border-slate-200 pt-1 mt-1">
+            <div class="text-base sm:text-lg font-bold text-emerald-600" id="t1_kpiAchievement">0.00%</div>
+            <div class="text-[9px] text-slate-400 font-semibold uppercase" id="t1_kpiAchStatus">▲ Target Met</div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-2.5 sm:p-3 flex flex-col justify-between shadow-sm border border-slate-200">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[9px] font-bold text-slate-400 uppercase">SALES PAYOUT (L)</span>
+              <i class="fa-solid fa-hand-holding-dollar text-sky-500 text-sm"></i>
+            </div>
+            <div class="text-base sm:text-lg font-bold mt-0.5 text-slate-800" id="t1_kpiSalesPayout">₹0.00 <span class="text-[10px] font-normal text-slate-500">L</span></div>
+          </div>
+          <div class="border-t border-dashed border-slate-200 pt-1 mt-1">
+            <div class="text-base sm:text-lg font-bold text-sky-600" id="t1_kpiSalesPayoutPct">0.00%</div>
+            <div class="text-[9px] text-slate-400 uppercase font-semibold truncate" id="t1_kpiSalesPayoutCr">₹0.00 CR</div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-2.5 sm:p-3 flex flex-col justify-between shadow-sm border border-slate-200">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[9px] font-bold text-slate-400 uppercase">HYGIENE (M)</span>
+              <i class="fa-solid fa-shield-halved text-purple-600 text-sm"></i>
+            </div>
+            <div class="text-base sm:text-lg font-bold mt-0.5 text-slate-800" id="t1_kpiHygienePayout">₹0.00 <span class="text-[10px] font-normal text-slate-500">L</span></div>
+          </div>
+          <div class="border-t border-dashed border-slate-200 pt-1 mt-1">
+            <div class="text-base sm:text-lg font-bold text-purple-600" id="t1_kpiHygienePayoutPct">0.00%</div>
+            <div class="text-[9px] text-slate-400 uppercase font-semibold truncate" id="t1_kpiHygienePayoutCr">₹0.00 CR</div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-2.5 sm:p-3 flex flex-col justify-between shadow-sm border border-slate-200">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-[9px] font-bold text-slate-400 uppercase">LOYALTY (N)</span>
+              <i class="fa-solid fa-gift text-orange-400 text-sm"></i>
+            </div>
+            <div class="text-base sm:text-lg font-bold mt-0.5 text-slate-800" id="t1_kpiLoyaltyPayout">₹0.00 <span class="text-[10px] font-normal text-slate-500">L</span></div>
+          </div>
+          <div class="border-t border-dashed border-slate-200 pt-1 mt-1">
+            <div class="text-base sm:text-lg font-bold text-amber-500" id="t1_kpiLoyaltyPayoutPct">0.00%</div>
+            <div class="text-[9px] text-slate-400 uppercase font-semibold truncate" id="t1_kpiLoyaltyPayoutCr">₹0.00 CR</div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-2.5 sm:p-3 flex flex-col justify-between shadow-sm border border-slate-200">
+          <div>
+            <span class="text-[9px] font-bold text-rose-500 uppercase">TOTAL PAYOUT (L+M+N)</span>
+            <div class="text-base sm:text-lg font-bold mt-0.5 text-rose-600" id="t1_kpiTotalPayout">₹0.00 <span class="text-[10px] font-normal text-slate-500">L</span></div>
+          </div>
+          <div class="border-t border-dashed border-slate-200 pt-1 mt-1">
+            <div class="text-base sm:text-lg font-bold text-rose-500" id="t1_kpiTotalPayoutPct">0.00%</div>
+            <div class="text-[9px] text-slate-400 uppercase font-semibold truncate" id="t1_kpiTotalPayoutCr">₹0.00 CR</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-2.5 sm:gap-3">
+        <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+          <h3 class="text-[11px] sm:text-xs font-bold text-slate-700 uppercase mb-2 flex items-center justify-between">
+            <span><i class="fa-solid fa-chart-column text-blue-600 mr-1"></i> Zone Wise Sale (CR) & Ach %</span>
+          </h3>
+          <div class="h-56 sm:h-72"><canvas id="t1_saleChart"></canvas></div>
+        </div>
+        <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+          <h3 class="text-[11px] sm:text-xs font-bold text-slate-700 uppercase mb-2 flex items-center justify-between">
+            <span><i class="fa-solid fa-chart-pie text-sky-600 mr-1"></i> Zone Wise Payout Breakdown (Lakhs ₹)</span>
+          </h3>
+          <div class="h-56 sm:h-72"><canvas id="t1_payoutChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Zone Table with Distinct % Columns -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="bg-[#0b2861] text-white px-3 py-2 text-[11px] sm:text-xs font-bold uppercase flex items-center justify-between">
+          <span><i class="fa-solid fa-table-list mr-1"></i> Zone Wise Performance Summary</span>
+          <span class="text-[9px] bg-blue-900 px-1.5 py-0.5 rounded font-normal">Swipe horizontally 👉</span>
+        </div>
+        <div class="overflow-x-auto custom-scroll">
+          <table class="w-full text-[10px] sm:text-xs text-center border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 font-semibold border-b">
+                <th class="p-2 border-r text-left">ZONE (D)</th>
+                <th class="p-2 border-r bg-amber-50/60 font-bold text-[#0b2861]">AVG STORES</th>
+                <th class="p-2 border-r">TOTAL TARGET (H)</th>
+                <th class="p-2 border-r">EXCL. SALE (I)</th>
+                <th class="p-2 border-r">GT SALE (J)</th>
+                <th class="p-2 border-r bg-blue-50">TOTAL SALE (K)</th>
+                <th class="p-2 border-r">ACH %</th>
+                <th class="p-2 border-r text-sky-700 bg-sky-50/40">SALES PAYOUT (L)</th>
+                <th class="p-2 border-r text-sky-800 bg-sky-50/70 font-bold">SALES %</th>
+                <th class="p-2 border-r text-purple-700 bg-purple-50/40">HYGIENE (M)</th>
+                <th class="p-2 border-r text-purple-800 bg-purple-50/70 font-bold">HYGIENE %</th>
+                <th class="p-2 border-r text-amber-700 bg-amber-50/40">LOYALTY (N)</th>
+                <th class="p-2 border-r text-amber-800 bg-amber-50/70 font-bold">LOYALTY %</th>
+                <th class="p-2 bg-rose-50 border-r font-bold text-rose-700">TOTAL PAYOUT (L)</th>
+                <th class="p-2 bg-rose-50/80 font-black text-rose-700">TOTAL %</th>
+              </tr>
+            </thead>
+            <tbody id="t1_summaryTableBody" class="divide-y divide-slate-200"></tbody>
+            <tfoot class="bg-[#0b2861] text-white font-bold text-[10px] sm:text-xs" id="t1_summaryTableFoot"></tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 2: RETAILER WISE ==================== -->
+    <div id="tabContent2" class="space-y-3 hidden">
+      
+      <!-- Tab 2 Filters -->
+      <div class="bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div id="t2_zoneFilterContainer" class="bg-slate-50 rounded-lg px-2.5 py-1 flex flex-col justify-center border">
+            <span class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase">1. Filter Zone (Col D)</span>
+            <select id="t2_zoneFilter" class="font-bold text-[11px] sm:text-xs bg-transparent outline-none cursor-pointer">
+              <option value="ALL">All Zones</option>
+            </select>
+          </div>
+
+          <div class="bg-slate-50 rounded-lg px-2.5 py-1 flex flex-col justify-center border">
+            <span class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase">2. Select Retailer (Col B)</span>
+            <select id="t2_storeFilter" class="font-bold text-[11px] sm:text-xs bg-transparent outline-none cursor-pointer max-w-full sm:max-w-[280px] truncate">
+              <option value="ALL">-- All Retailers / Stores --</option>
+            </select>
+          </div>
+        </div>
+
+        <button onclick="resetTab2Filters()" class="bg-slate-700 active:bg-slate-800 text-white rounded-lg px-3 py-1.5 font-bold flex items-center justify-center gap-1.5 transition text-xs">
+          <i class="fa-solid fa-rotate-right"></i> Reset Retailer Filter
+        </button>
+      </div>
+
+      <!-- Retailer Performance Summary Banner -->
+      <div class="bg-gradient-to-r from-[#0b2861] via-[#113274] to-[#0b2861] text-white p-3 sm:p-4 rounded-2xl shadow-md space-y-2.5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-blue-900/60 pb-2">
+          <div>
+            <span class="text-[9px] uppercase font-bold tracking-wider text-amber-400">Retailer Performance & Payout Segregation</span>
+            <h2 class="text-sm sm:text-lg font-black text-white mt-0.5" id="t2_storeNameDisplay">All Retailers Summary</h2>
+            <p class="text-[10px] text-blue-200" id="t2_storeMetaDisplay">Distributor: All | Zone: All</p>
+          </div>
+          <div class="bg-white/10 px-2 py-0.5 rounded text-[10px] font-semibold text-blue-200 w-fit">
+            Achieved: <span id="t2_bannerAchPct" class="font-bold text-emerald-400">0.00%</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          <div class="bg-white/10 backdrop-blur-sm px-2.5 py-1.5 rounded-xl border border-white/10">
+            <span class="text-[9px] text-blue-200 uppercase font-bold">ACHIEVED SALE</span>
+            <div class="text-sm sm:text-base font-black text-amber-400" id="t2_topSale">₹0</div>
+            <div class="text-[9px] text-blue-200 truncate" id="t2_topTargetText">Target: ₹0</div>
+          </div>
+
+          <div class="bg-white/10 backdrop-blur-sm px-2.5 py-1.5 rounded-xl border border-white/10">
+            <span class="text-[9px] text-sky-300 uppercase font-bold">SALES PAYOUT (L)</span>
+            <div class="text-sm sm:text-base font-black text-sky-400" id="t2_topSalesPayout">₹0</div>
+            <div class="text-[9px] text-sky-200 font-bold" id="t2_topSalesPayoutPct">0.00% of Sale</div>
+          </div>
+
+          <div class="bg-white/10 backdrop-blur-sm px-2.5 py-1.5 rounded-xl border border-white/10">
+            <span class="text-[9px] text-purple-300 uppercase font-bold">HYGIENE (M)</span>
+            <div class="text-sm sm:text-base font-black text-purple-400" id="t2_topHygienePayout">₹0</div>
+            <div class="text-[9px] text-purple-200 font-bold" id="t2_topHygienePayoutPct">0.00% of Sale</div>
+          </div>
+
+          <div class="bg-white/10 backdrop-blur-sm px-2.5 py-1.5 rounded-xl border border-white/10">
+            <span class="text-[9px] text-amber-300 uppercase font-bold">LOYALTY (N)</span>
+            <div class="text-sm sm:text-base font-black text-amber-400" id="t2_topLoyaltyPayout">₹0</div>
+            <div class="text-[9px] text-amber-200 font-bold" id="t2_topLoyaltyPayoutPct">0.00% of Sale</div>
+          </div>
+
+          <div class="bg-rose-500/20 backdrop-blur-sm px-2.5 py-1.5 rounded-xl border border-rose-400/30 col-span-2 sm:col-span-1">
+            <span class="text-[9px] text-rose-300 uppercase font-bold">TOTAL PAYOUT</span>
+            <div class="text-sm sm:text-base font-black text-rose-400" id="t2_topPayout">₹0</div>
+            <div class="text-[9px] text-rose-200 font-bold" id="t2_topPayoutPct">0.00% of Sale</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Retailer Centered Chart -->
+      <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200">
+        <h3 class="text-[11px] sm:text-xs font-bold text-slate-700 uppercase mb-2 flex flex-wrap items-center justify-between gap-1">
+          <span><i class="fa-solid fa-chart-simple text-[#0b2861] mr-1"></i> Performance & Payout Summary</span>
+          <span class="text-[9px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">Sale in ₹ L • Payout in Actual ₹</span>
+        </h3>
+        <div class="h-60 sm:h-72 max-w-[1250px] mx-auto">
+          <canvas id="t2_directCategoryChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Detailed Breakdown Table with Distinct % Columns -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="bg-[#0b2861] text-white px-3 py-2 text-[11px] sm:text-xs font-bold uppercase flex items-center justify-between">
+          <span><i class="fa-solid fa-list-check mr-1"></i> Performance & Payout Detailed Breakdown</span>
+          <span class="text-[9px] bg-blue-900 px-1.5 py-0.5 rounded font-normal">Swipe horizontally 👉</span>
+        </div>
+        <div class="overflow-x-auto custom-scroll">
+          <table class="w-full text-[10px] sm:text-xs text-center border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 font-semibold border-b">
+                <th class="p-2 border-r text-left">PERIOD / MONTH (E)</th>
+                <th class="p-2 border-r">EXCL TARGET (F)</th>
+                <th class="p-2 border-r">GT TARGET (G)</th>
+                <th class="p-2 border-r font-bold">TOTAL TARGET (H)</th>
+                <th class="p-2 border-r">EXCL SALE (I)</th>
+                <th class="p-2 border-r">GT SALE (J)</th>
+                <th class="p-2 border-r bg-blue-50 font-bold">TOTAL SALE (K)</th>
+                <th class="p-2 border-r">ACH %</th>
+                <th class="p-2 border-r text-sky-700 bg-sky-50/40">SALES PAYOUT (L)</th>
+                <th class="p-2 border-r text-sky-800 bg-sky-50/70 font-bold">SALES %</th>
+                <th class="p-2 border-r text-purple-700 bg-purple-50/40">HYGIENE (M)</th>
+                <th class="p-2 border-r text-purple-800 bg-purple-50/70 font-bold">HYGIENE %</th>
+                <th class="p-2 border-r text-amber-700 bg-amber-50/40">LOYALTY (N)</th>
+                <th class="p-2 border-r text-amber-800 bg-amber-50/70 font-bold">LOYALTY %</th>
+                <th class="p-2 bg-rose-50 border-r font-bold text-rose-700">TOTAL PAYOUT</th>
+                <th class="p-2 bg-rose-50/80 font-black text-rose-700">TOTAL %</th>
+              </tr>
+            </thead>
+            <tbody id="t2_monthDetailTableBody" class="divide-y divide-slate-200"></tbody>
+            <tfoot class="bg-[#0b2861] text-white font-bold text-[10px] sm:text-xs" id="t2_monthDetailTableFoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    Chart.register(ChartDataLabels);
+
+    // ================= ZONE-WISE PASSCODES CONFIGURATION =================
+    const ZONE_PASSCODES = {
+      "admin@2026": "ADMIN",
+      "zone1@123": "Zone 1",
+      "zone2@123": "Zone 2",
+      "zone3@123": "Zone 3",
+      "zone4@123": "Zone 4",
+      "zone5@123": "Zone 5",
+      "zone6@123": "Zone 6",
+      "zone7@123": "Zone 7",
+      "zone8@123": "Zone 8",
+      "zone9@123": "Zone 9"
+    };
+
+    let currentUserZone = null;
+    const STORAGE_KEY = 'PAYOUT_DASHBOARD_DATA_2026_27';
+
+    let rawStoreData = [];
+    let t1_saleChart = null;
+    let t1_payoutChart = null;
+    let t2_directCategoryChart = null;
+
+    function checkZoneAccess() {
+      const input = (document.getElementById('passcodeInput').value || '').trim();
+      const error = document.getElementById('authError');
+
+      if (ZONE_PASSCODES[input]) {
+        currentUserZone = ZONE_PASSCODES[input];
+        sessionStorage.setItem('AUTH_USER_ZONE', currentUserZone);
+        
+        applyZoneSecurity();
+        const overlay = document.getElementById('authOverlay');
+        overlay.classList.add('hidden');
+        overlay.style.removeProperty('display');
+        document.getElementById('mainDashboard').classList.remove('blur-sm');
+      } else {
+        error.classList.remove('hidden');
+        document.getElementById('passcodeInput').value = '';
+      }
+    }
+
+    function applyZoneSecurity() {
+      const badge = document.getElementById('zoneAccessBadge');
+      const zFilter1Cont = document.getElementById('t1_zoneFilterContainer');
+      const zFilter2Cont = document.getElementById('t2_zoneFilterContainer');
+
+      if (currentUserZone === "ADMIN") {
+        badge.innerText = "All Zones (Admin)";
+        badge.className = "bg-emerald-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase";
+        if (zFilter1Cont) zFilter1Cont.classList.remove('hidden');
+        if (zFilter2Cont) zFilter2Cont.classList.remove('hidden');
+      } else {
+        badge.innerText = `${currentUserZone} Only`;
+        badge.className = "bg-amber-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase";
+        if (zFilter1Cont) zFilter1Cont.classList.add('hidden');
+        if (zFilter2Cont) zFilter2Cont.classList.add('hidden');
+      }
+
+      initAllFilters();
+      renderTab1();
+      renderTab2();
+    }
+
+    function logoutZone() {
+      sessionStorage.removeItem('AUTH_USER_ZONE');
+      currentUserZone = null;
+      document.getElementById('passcodeInput').value = '';
+      document.getElementById('authError').classList.add('hidden');
+      const overlay = document.getElementById('authOverlay');
+      overlay.classList.remove('hidden');
+      overlay.style.removeProperty('display');
+      document.getElementById('mainDashboard').classList.add('blur-sm');
+    }
+
+    document.getElementById('passcodeInput').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') checkZoneAccess();
+    });
+
+    const toCr = (num) => (num / 10000000).toFixed(2);
+    const toLakh = (num) => (num / 100000).toFixed(2);
+    const formatINR = (num) => (Math.round(num) || 0).toLocaleString('en-IN');
+    const formatPct = (num) => (num || 0).toFixed(2) + '%';
+
+    function parseNumeric(val) {
+      if (typeof val === 'number') return val;
+      if (!val) return 0;
+      const clean = String(val).replace(/[^0-9.-]+/g, '');
+      return parseFloat(clean) || 0;
+    }
+
+    function formatMonthVal(val) {
+      if (!val) return 'Apr 2026';
+      if (typeof val === 'number') {
+        const date = new Date((val - (25567 + 2)) * 86400 * 1000);
+        return date.toLocaleString('default', { month: 'short', year: 'numeric' });
+      }
+      const str = String(val).trim();
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleString('default', { month: 'short', year: 'numeric' });
+      }
+      return str;
+    }
+
+    function showLoader(show) {
+      const overlay = document.getElementById('loadingOverlay');
+      if (show) overlay.classList.remove('hidden');
+      else overlay.classList.add('hidden');
+    }
+
+    function switchTab(tabNumber) {
+      document.getElementById('tabContent1').classList.toggle('hidden', tabNumber !== 1);
+      document.getElementById('tabContent2').classList.toggle('hidden', tabNumber !== 2);
+      
+      document.getElementById('tabBtn1').classList.toggle('active', tabNumber === 1);
+      document.getElementById('tabBtn2').classList.toggle('active', tabNumber === 2);
+
+      if (tabNumber === 1) renderTab1();
+      if (tabNumber === 2) renderTab2();
+    }
+
+    function saveToLocalStorage(data) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {
+        console.warn('LocalStorage save failed:', e);
+      }
+    }
+
+    function loadFromLocalStorage() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {
+        console.warn('LocalStorage load failed:', e);
+      }
+      return null;
+    }
+
+    function processExcelRows(rawRows) {
+      if (!rawRows || rawRows.length <= 1) return;
+      const dataRows = rawRows.slice(1);
+
+      const parsed = [];
+      for (let i = 0; i < dataRows.length; i++) {
+        const r = dataRows[i];
+        if (!r || (!r[0] && !r[1] && !r[3])) continue;
+
+        const exclTarget = parseNumeric(r[5]);
+        const gtTarget = parseNumeric(r[6]);
+        const totalTarget = r[7] !== undefined ? parseNumeric(r[7]) : (exclTarget + gtTarget);
+
+        const exclSale = parseNumeric(r[8]);
+        const gtSale = parseNumeric(r[9]);
+        const totalSale = r[10] !== undefined ? parseNumeric(r[10]) : (exclSale + gtSale);
+
+        const salesPayout = parseNumeric(r[11]);
+        const hygienePayout = parseNumeric(r[12]);
+        const loyaltyPayout = parseNumeric(r[13]);
+
+        parsed.push({
+          "Exclusive Store Code": String(r[0] || '').trim(),
+          "Exclusive Store Name": String(r[1] || '').trim(),
+          "Distributor Name": String(r[2] || '').trim(),
+          "Zone": String(r[3] || 'Zone 1').trim(),
+          "Month": formatMonthVal(r[4]),
+          "Exclusive Store Target": exclTarget,
+          "GT Store Target": gtTarget,
+          "Total Target": totalTarget,
+          "Exclusive Store Sale": exclSale,
+          "GT Sale": gtSale,
+          "Total Sale": totalSale,
+          "Final Sales Support Payout": salesPayout,
+          "Final Hygiene Support Payout": hygienePayout,
+          "Final Partner Loyalty Bonus Payout": loyaltyPayout
+        });
+      }
+
+      rawStoreData = parsed;
+      saveToLocalStorage(rawStoreData);
+      initAllFilters();
+      renderTab1();
+      renderTab2();
+    }
+
+    function getSecuredData() {
+      if (!currentUserZone || currentUserZone === "ADMIN") return rawStoreData;
+      return rawStoreData.filter(d => (d.Zone || '').toLowerCase() === currentUserZone.toLowerCase());
+    }
+
+    function initAllFilters() {
+      const activeData = getSecuredData();
+      const months = [...new Set(activeData.map(d => d.Month))].filter(Boolean).sort();
+      const zones = [...new Set(activeData.map(d => d.Zone))].filter(Boolean).sort();
+
+      const t1_mSel = document.getElementById('t1_monthFilter');
+      t1_mSel.innerHTML = '<option value="ALL">All Months</option>' + months.map(m => `<option value="${m}">${m}</option>`).join('');
+
+      const t1_zSel = document.getElementById('t1_zoneFilter');
+      t1_zSel.innerHTML = '<option value="ALL">All Zones</option>' + zones.map(z => `<option value="${z}">${z}</option>`).join('');
+
+      const t2_zSel = document.getElementById('t2_zoneFilter');
+      t2_zSel.innerHTML = '<option value="ALL">All Zones</option>' + zones.map(z => `<option value="${z}">${z}</option>`).join('');
+
+      populateTab2StoreFilter(activeData);
+    }
+
+    function populateTab2StoreFilter(data) {
+      const stores = [...new Set(data.map(d => d['Exclusive Store Name']))].filter(Boolean).sort();
+      const storeSelect = document.getElementById('t2_storeFilter');
+      storeSelect.innerHTML = '<option value="ALL">-- All Retailers / Stores --</option>' + 
+        stores.map(s => `<option value="${s}">${s}</option>`).join('');
+    }
+
+    function renderTab1() {
+      const selMonth = document.getElementById('t1_monthFilter').value;
+      const selZone = document.getElementById('t1_zoneFilter').value;
+
+      let filtered = getSecuredData();
+      if (selMonth !== 'ALL') filtered = filtered.filter(d => d.Month === selMonth);
+      if (currentUserZone === "ADMIN" && selZone !== 'ALL') {
+        filtered = filtered.filter(d => d.Zone === selZone);
+      }
+
+      const distinctMonths = [...new Set(filtered.map(d => d.Month))].filter(Boolean);
+      const numMonths = distinctMonths.length || 1;
+
+      const totalRecords = filtered.length;
+      const totalAvgStores = Math.round(totalRecords / numMonths);
+
+      let totalTarget = 0, exclSale = 0, gtSale = 0, totalSale = 0, salesPayout = 0, hygienePayout = 0, loyaltyPayout = 0;
+      const zoneGroups = {};
+
+      for (let i = 0; i < filtered.length; i++) {
+        const r = filtered[i];
+        totalTarget += r['Total Target'] || 0;
+        exclSale += r['Exclusive Store Sale'] || 0;
+        gtSale += r['GT Sale'] || 0;
+        totalSale += r['Total Sale'] || 0;
+        salesPayout += r['Final Sales Support Payout'] || 0;
+        hygienePayout += r['Final Hygiene Support Payout'] || 0;
+        loyaltyPayout += r['Final Partner Loyalty Bonus Payout'] || 0;
+
+        const z = r.Zone || 'Unknown';
+        if (!zoneGroups[z]) {
+          zoneGroups[z] = { zone: z, count: 0, months: new Set(), target: 0, exclSale: 0, gtSale: 0, totalSale: 0, salesPayout: 0, hygienePayout: 0, loyaltyPayout: 0 };
+        }
+        zoneGroups[z].count += 1;
+        if (r.Month) zoneGroups[z].months.add(r.Month);
+        zoneGroups[z].target += r['Total Target'] || 0;
+        zoneGroups[z].exclSale += r['Exclusive Store Sale'] || 0;
+        zoneGroups[z].gtSale += r['GT Sale'] || 0;
+        zoneGroups[z].totalSale += r['Total Sale'] || 0;
+        zoneGroups[z].salesPayout += (r['Final Sales Support Payout'] || 0);
+        zoneGroups[z].hygienePayout += (r['Final Hygiene Support Payout'] || 0);
+        zoneGroups[z].loyaltyPayout += (r['Final Partner Loyalty Bonus Payout'] || 0);
+      }
+
+      const totalPayout = salesPayout + hygienePayout + loyaltyPayout;
+      const achievementPct = totalTarget > 0 ? (totalSale / totalTarget) * 100 : 0;
+      const salesPayoutPct = totalSale > 0 ? (salesPayout / totalSale) * 100 : 0;
+      const hygienePayoutPct = totalSale > 0 ? (hygienePayout / totalSale) * 100 : 0;
+      const loyaltyPayoutPct = totalSale > 0 ? (loyaltyPayout / totalSale) * 100 : 0;
+      const totalPayoutPct = totalSale > 0 ? (totalPayout / totalSale) * 100 : 0;
+
+      document.getElementById('t1_kpiStoreCount').innerText = `${totalAvgStores} Avg Stores`;
+      document.getElementById('t1_kpiTotalSale').innerHTML = `₹${toCr(totalSale)} <span class="text-[10px] font-normal">CR</span>`;
+      document.getElementById('t1_kpiTargetSub').innerText = `₹${toCr(totalTarget)} CR`;
+      document.getElementById('t1_kpiTarget').innerHTML = `₹${toCr(totalTarget)} <span class="text-[10px] font-normal text-slate-500">CR</span>`;
+      document.getElementById('t1_kpiAchievement').innerText = formatPct(achievementPct);
+      document.getElementById('t1_kpiAchStatus').innerHTML = achievementPct >= 100 
+        ? '<span class="text-emerald-600 font-bold">▲ Target Met</span>' 
+        : '<span class="text-rose-500 font-bold">▼ Target Lag</span>';
+
+      document.getElementById('t1_kpiSalesPayout').innerHTML = `₹${toLakh(salesPayout)} <span class="text-[10px] font-normal text-slate-500">L</span>`;
+      document.getElementById('t1_kpiSalesPayoutPct').innerText = formatPct(salesPayoutPct);
+      document.getElementById('t1_kpiSalesPayoutCr').innerText = `₹${toCr(salesPayout)} CR`;
+
+      document.getElementById('t1_kpiHygienePayout').innerHTML = `₹${toLakh(hygienePayout)} <span class="text-[10px] font-normal text-slate-500">L</span>`;
+      document.getElementById('t1_kpiHygienePayoutPct').innerText = formatPct(hygienePayoutPct);
+      document.getElementById('t1_kpiHygienePayoutCr').innerText = `₹${toCr(hygienePayout)} CR`;
+
+      document.getElementById('t1_kpiLoyaltyPayout').innerHTML = `₹${toLakh(loyaltyPayout)} <span class="text-[10px] font-normal text-slate-500">L</span>`;
+      document.getElementById('t1_kpiLoyaltyPayoutPct').innerText = formatPct(loyaltyPayoutPct);
+      document.getElementById('t1_kpiLoyaltyPayoutCr').innerText = `₹${toCr(loyaltyPayout)} CR`;
+
+      document.getElementById('t1_kpiTotalPayout').innerHTML = `₹${toLakh(totalPayout)} <span class="text-[10px] font-normal text-slate-500">L</span>`;
+      document.getElementById('t1_kpiTotalPayoutPct').innerText = formatPct(totalPayoutPct);
+      document.getElementById('t1_kpiTotalPayoutCr').innerText = `₹${toCr(totalPayout)} CR`;
+
+      const zoneArray = Object.values(zoneGroups).sort((a, b) => a.zone.localeCompare(b.zone));
+      const summaryTbody = document.getElementById('t1_summaryTableBody');
+      
+      let rowsHTML = '';
+      let sumAvgStores = 0;
+
+      for (let i = 0; i < zoneArray.length; i++) {
+        const z = zoneArray[i];
+        const ach = z.target > 0 ? (z.totalSale / z.target) * 100 : 0;
+        const totPay = z.salesPayout + z.hygienePayout + z.loyaltyPayout;
+        const zMonthsCount = z.months.size || 1;
+        const avgStores = Math.round(z.count / zMonthsCount);
+        sumAvgStores += avgStores;
+
+        const zSPayPct = z.totalSale > 0 ? (z.salesPayout / z.totalSale) * 100 : 0;
+        const zHPayPct = z.totalSale > 0 ? (z.hygienePayout / z.totalSale) * 100 : 0;
+        const zLPayPct = z.totalSale > 0 ? (z.loyaltyPayout / z.totalSale) * 100 : 0;
+        const zTotPayPct = z.totalSale > 0 ? (totPay / z.totalSale) * 100 : 0;
+
+        rowsHTML += `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="p-2 font-bold text-left border-r text-slate-800">${z.zone}</td>
+            <td class="p-2 border-r font-bold text-[#0b2861] bg-amber-50/40">${avgStores}</td>
+            <td class="p-2 border-r">${toCr(z.target)}</td>
+            <td class="p-2 border-r text-slate-600">${toCr(z.exclSale)}</td>
+            <td class="p-2 border-r text-slate-600">${toCr(z.gtSale)}</td>
+            <td class="p-2 border-r font-bold text-blue-900 bg-blue-50/50">${toCr(z.totalSale)}</td>
+            <td class="p-2 border-r font-semibold ${ach >= 100 ? 'text-emerald-600' : 'text-amber-600'}">${formatPct(ach)}</td>
+            <td class="p-2 border-r text-sky-700 bg-sky-50/20 font-bold">${toLakh(z.salesPayout)}</td>
+            <td class="p-2 border-r text-sky-800 bg-sky-50/50 font-bold">${formatPct(zSPayPct)}</td>
+            <td class="p-2 border-r text-purple-700 bg-purple-50/20 font-bold">${toLakh(z.hygienePayout)}</td>
+            <td class="p-2 border-r text-purple-800 bg-purple-50/50 font-bold">${formatPct(zHPayPct)}</td>
+            <td class="p-2 border-r text-amber-700 bg-amber-50/20 font-bold">${toLakh(z.loyaltyPayout)}</td>
+            <td class="p-2 border-r text-amber-800 bg-amber-50/50 font-bold">${formatPct(zLPayPct)}</td>
+            <td class="p-2 border-r text-rose-600 bg-rose-50/40 font-extrabold">${toLakh(totPay)}</td>
+            <td class="p-2 text-rose-700 bg-rose-50/70 font-extrabold">${formatPct(zTotPayPct)}</td>
+          </tr>`;
+      }
+
+      summaryTbody.innerHTML = rowsHTML;
+
+      document.getElementById('t1_summaryTableFoot').innerHTML = `
+        <tr>
+          <td class="p-2 text-left border-r border-blue-800 font-bold">TOTAL</td>
+          <td class="p-2 border-r border-blue-800 font-black text-amber-300">${sumAvgStores}</td>
+          <td class="p-2 border-r border-blue-800">${toCr(totalTarget)}</td>
+          <td class="p-2 border-r border-blue-800">${toCr(exclSale)}</td>
+          <td class="p-2 border-r border-blue-800">${toCr(gtSale)}</td>
+          <td class="p-2 border-r border-blue-800 text-amber-300 font-black">${toCr(totalSale)}</td>
+          <td class="p-2 border-r border-blue-800 text-emerald-300">${formatPct(achievementPct)}</td>
+          <td class="p-2 border-r border-blue-800 text-white font-bold">${toLakh(salesPayout)}</td>
+          <td class="p-2 border-r border-blue-800 text-sky-200 font-bold">${formatPct(salesPayoutPct)}</td>
+          <td class="p-2 border-r border-blue-800 text-white font-bold">${toLakh(hygienePayout)}</td>
+          <td class="p-2 border-r border-blue-800 text-purple-200 font-bold">${formatPct(hygienePayoutPct)}</td>
+          <td class="p-2 border-r border-blue-800 text-white font-bold">${toLakh(loyaltyPayout)}</td>
+          <td class="p-2 border-r border-blue-800 text-amber-200 font-bold">${formatPct(loyaltyPayoutPct)}</td>
+          <td class="p-2 border-r border-blue-800 text-rose-300 font-black">${toLakh(totalPayout)}</td>
+          <td class="p-2 text-rose-300 font-black">${formatPct(totalPayoutPct)}</td>
+        </tr>`;
+
+      updateTab1Charts(zoneArray);
+    }
+
+    function updateTab1Charts(zoneData) {
+      const labels = zoneData.map(d => d.zone);
+      const salesCr = zoneData.map(d => +(d.totalSale / 10000000).toFixed(2));
+      const achPcts = zoneData.map(d => +(d.target > 0 ? (d.totalSale / d.target) * 100 : 0).toFixed(1));
+      
+      const salesPayoutL = zoneData.map(d => +(d.salesPayout / 100000).toFixed(2));
+      const hygienePayoutL = zoneData.map(d => +(d.hygienePayout / 100000).toFixed(2));
+      const loyaltyPayoutL = zoneData.map(d => +(d.loyaltyPayout / 100000).toFixed(2));
+
+      const maxSale = Math.max(...salesCr, 1);
+      const maxAch = Math.max(...achPcts, 100);
+      const maxPayout = Math.max(...salesPayoutL, ...hygienePayoutL, ...loyaltyPayoutL, 1);
+
+      if (t1_saleChart) t1_saleChart.destroy();
+      if (t1_payoutChart) t1_payoutChart.destroy();
+
+      const ctx1 = document.getElementById('t1_saleChart').getContext('2d');
+      t1_saleChart = new Chart(ctx1, {
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              type: 'line',
+              label: 'Ach %',
+              data: achPcts,
+              borderColor: '#f97316',
+              backgroundColor: '#f97316',
+              pointRadius: 3,
+              yAxisID: 'y1',
+              datalabels: { align: 'top', anchor: 'center', color: '#c2410c', font: { weight: 'bold', size: 8 }, formatter: (v) => v + '%' }
+            },
+            {
+              type: 'bar',
+              label: 'Total Sale (CR)',
+              data: salesCr,
+              backgroundColor: '#0b2861',
+              borderRadius: 3,
+              yAxisID: 'y',
+              datalabels: { align: 'top', anchor: 'end', color: '#0b2861', font: { weight: 'bold', size: 8 }, formatter: (v) => '₹' + v + 'Cr' }
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          layout: { padding: { top: 15 } },
+          plugins: { legend: { position: 'top', labels: { boxWidth: 8, font: { size: 9 } } } },
+          scales: {
+            y: { title: { display: false }, beginAtZero: true, suggestedMax: maxSale * 1.25, ticks: { font: { size: 8 } } },
+            y1: { position: 'right', title: { display: false }, grid: { drawOnChartArea: false }, beginAtZero: true, suggestedMax: maxAch * 1.25, ticks: { font: { size: 8 } } },
+            x: { ticks: { font: { size: 8 } } }
+          }
+        }
+      });
+
+      const ctx2 = document.getElementById('t1_payoutChart').getContext('2d');
+      t1_payoutChart = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'Sales (₹ L)', data: salesPayoutL, backgroundColor: '#0284c7', datalabels: { align: 'top', anchor: 'end', font: { size: 7, weight: 'bold' }, color: '#0369a1', formatter: v => v > 0 ? v : '' } },
+            { label: 'Hygiene (₹ L)', data: hygienePayoutL, backgroundColor: '#7c3aed', datalabels: { align: 'top', anchor: 'end', font: { size: 7, weight: 'bold' }, color: '#6d28d9', formatter: v => v > 0 ? v : '' } },
+            { label: 'Loyalty (₹ L)', data: loyaltyPayoutL, backgroundColor: '#f59e0b', datalabels: { align: 'top', anchor: 'end', font: { size: 7, weight: 'bold' }, color: '#b45309', formatter: v => v > 0 ? v : '' } }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          layout: { padding: { top: 15 } },
+          plugins: { legend: { position: 'top', labels: { boxWidth: 8, font: { size: 9 } } } },
+          scales: { 
+            y: { title: { display: false }, beginAtZero: true, suggestedMax: maxPayout * 1.25, ticks: { font: { size: 8 } } },
+            x: { ticks: { font: { size: 8 } } }
+          }
+        }
+      });
+    }
+
+    function renderTab2() {
+      const selMonth = document.getElementById('t1_monthFilter').value;
+      const selZone = document.getElementById('t2_zoneFilter').value;
+      const selStore = document.getElementById('t2_storeFilter').value;
+
+      let filtered = getSecuredData();
+      if (selMonth !== 'ALL') filtered = filtered.filter(d => d.Month === selMonth);
+      if (currentUserZone === "ADMIN" && selZone !== 'ALL') {
+        filtered = filtered.filter(d => d.Zone === selZone);
+      }
+      if (selStore !== 'ALL') filtered = filtered.filter(d => d['Exclusive Store Name'] === selStore);
+
+      if (selStore !== 'ALL') {
+        const storeInfo = filtered[0] || {};
+        document.getElementById('t2_storeNameDisplay').innerText = selStore;
+        document.getElementById('t2_storeMetaDisplay').innerText = `Code: ${storeInfo['Exclusive Store Code'] || '-'} | Dist: ${storeInfo['Distributor Name'] || '-'} | Zone: ${storeInfo.Zone || '-'}`;
+      } else {
+        document.getElementById('t2_storeNameDisplay').innerText = (!currentUserZone || currentUserZone === "ADMIN") ? (selZone === 'ALL' ? 'All Retailers Summary' : `All Retailers in ${selZone}`) : `${currentUserZone} Retailers Summary`;
+        document.getElementById('t2_storeMetaDisplay').innerText = `Viewing aggregated data for authorized zone`;
+      }
+
+      let totTargetAll = 0, totSaleAll = 0, salesPayoutAll = 0, hygienePayoutAll = 0, loyaltyPayoutAll = 0;
+      const monthGroups = {};
+
+      for (let i = 0; i < filtered.length; i++) {
+        const r = filtered[i];
+        totTargetAll += r['Total Target'] || 0;
+        totSaleAll += r['Total Sale'] || 0;
+        salesPayoutAll += r['Final Sales Support Payout'] || 0;
+        hygienePayoutAll += r['Final Hygiene Support Payout'] || 0;
+        loyaltyPayoutAll += r['Final Partner Loyalty Bonus Payout'] || 0;
+
+        const m = r.Month || 'Apr 2026';
+        if (!monthGroups[m]) {
+          monthGroups[m] = { month: m, exclTarget: 0, gtTarget: 0, totalTarget: 0, exclSale: 0, gtSale: 0, totalSale: 0, salesPayout: 0, hygienePayout: 0, loyaltyPayout: 0 };
+        }
+        monthGroups[m].exclTarget += r['Exclusive Store Target'] || 0;
+        monthGroups[m].gtTarget += r['GT Store Target'] || 0;
+        monthGroups[m].totalTarget += r['Total Target'] || 0;
+        monthGroups[m].exclSale += r['Exclusive Store Sale'] || 0;
+        monthGroups[m].gtSale += r['GT Sale'] || 0;
+        monthGroups[m].totalSale += r['Total Sale'] || 0;
+        monthGroups[m].salesPayout += (r['Final Sales Support Payout'] || 0);
+        monthGroups[m].hygienePayout += (r['Final Hygiene Support Payout'] || 0);
+        monthGroups[m].loyaltyPayout += (r['Final Partner Loyalty Bonus Payout'] || 0);
+      }
+
+      const totPayAll = salesPayoutAll + hygienePayoutAll + loyaltyPayoutAll;
+      const overallAch = totTargetAll > 0 ? (totSaleAll / totTargetAll) * 100 : 0;
+      const sPct = totSaleAll > 0 ? (salesPayoutAll / totSaleAll) * 100 : 0;
+      const hPct = totSaleAll > 0 ? (hygienePayoutAll / totSaleAll) * 100 : 0;
+      const lPct = totSaleAll > 0 ? (loyaltyPayoutAll / totSaleAll) * 100 : 0;
+      const totPct = totSaleAll > 0 ? (totPayAll / totSaleAll) * 100 : 0;
+
+      document.getElementById('t2_bannerAchPct').innerText = formatPct(overallAch);
+      document.getElementById('t2_topSale').innerText = '₹' + formatINR(totSaleAll);
+      document.getElementById('t2_topTargetText').innerText = 'Target: ₹' + formatINR(totTargetAll);
+
+      document.getElementById('t2_topSalesPayout').innerText = '₹' + formatINR(salesPayoutAll);
+      document.getElementById('t2_topSalesPayoutPct').innerText = formatPct(sPct) + ' of Sale';
+
+      document.getElementById('t2_topHygienePayout').innerText = '₹' + formatINR(hygienePayoutAll);
+      document.getElementById('t2_topHygienePayoutPct').innerText = formatPct(hPct) + ' of Sale';
+
+      document.getElementById('t2_topLoyaltyPayout').innerText = '₹' + formatINR(loyaltyPayoutAll);
+      document.getElementById('t2_topLoyaltyPayoutPct').innerText = formatPct(lPct) + ' of Sale';
+
+      document.getElementById('t2_topPayout').innerText = '₹' + formatINR(totPayAll);
+      document.getElementById('t2_topPayoutPct').innerText = formatPct(totPct) + ' of Sale';
+
+      const monthArray = Object.values(monthGroups);
+      const monthTbody = document.getElementById('t2_monthDetailTableBody');
+
+      let rowsHTML = '';
+      let sumExclT = 0, sumGtT = 0, sumTotT = 0, sumExclS = 0, sumGtS = 0, sumTotS = 0, sumSPay = 0, sumHPay = 0, sumLPay = 0;
+
+      for (let i = 0; i < monthArray.length; i++) {
+        const m = monthArray[i];
+        const ach = m.totalTarget > 0 ? (m.totalSale / m.totalTarget) * 100 : 0;
+        const totPay = m.salesPayout + m.hygienePayout + m.loyaltyPayout;
+        
+        const mSalesPct = m.totalSale > 0 ? (m.salesPayout / m.totalSale) * 100 : 0;
+        const mHygienePct = m.totalSale > 0 ? (m.hygienePayout / m.totalSale) * 100 : 0;
+        const mLoyaltyPct = m.totalSale > 0 ? (m.loyaltyPayout / m.totalSale) * 100 : 0;
+        const mTotPayPct = m.totalSale > 0 ? (totPay / m.totalSale) * 100 : 0;
+
+        sumExclT += m.exclTarget; sumGtT += m.gtTarget; sumTotT += m.totalTarget;
+        sumExclS += m.exclSale; sumGtS += m.gtSale; sumTotS += m.totalSale;
+        sumSPay += m.salesPayout; sumHPay += m.hygienePayout; sumLPay += m.loyaltyPayout;
+
+        rowsHTML += `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="p-2 font-bold text-left border-r text-[#0b2861]"><i class="fa-regular fa-calendar-check mr-1"></i>${m.month}</td>
+            <td class="p-2 border-r text-slate-600">${formatINR(m.exclTarget)}</td>
+            <td class="p-2 border-r text-slate-600">${formatINR(m.gtTarget)}</td>
+            <td class="p-2 border-r font-bold text-slate-700">${formatINR(m.totalTarget)}</td>
+            <td class="p-2 border-r text-slate-600">${formatINR(m.exclSale)}</td>
+            <td class="p-2 border-r text-slate-600">${formatINR(m.gtSale)}</td>
+            <td class="p-2 border-r font-bold text-blue-900 bg-blue-50/40">${formatINR(m.totalSale)}</td>
+            <td class="p-2 border-r font-semibold ${ach >= 100 ? 'text-emerald-600' : 'text-amber-600'}">${formatPct(ach)}</td>
+            <td class="p-2 border-r text-sky-700 bg-sky-50/30 font-bold">${formatINR(m.salesPayout)}</td>
+            <td class="p-2 border-r text-sky-800 bg-sky-50/60 font-bold">${formatPct(mSalesPct)}</td>
+            <td class="p-2 border-r text-purple-700 bg-purple-50/30 font-bold">${formatINR(m.hygienePayout)}</td>
+            <td class="p-2 border-r text-purple-800 bg-purple-50/60 font-bold">${formatPct(mHygienePct)}</td>
+            <td class="p-2 border-r text-amber-700 bg-amber-50/30 font-bold">${formatINR(m.loyaltyPayout)}</td>
+            <td class="p-2 border-r text-amber-800 bg-amber-50/60 font-bold">${formatPct(mLoyaltyPct)}</td>
+            <td class="p-2 border-r text-rose-600 bg-rose-50/40 font-extrabold">${formatINR(totPay)}</td>
+            <td class="p-2 text-rose-700 bg-rose-50/70 font-extrabold">${formatPct(mTotPayPct)}</td>
+          </tr>`;
+      }
+
+      monthTbody.innerHTML = rowsHTML;
+
+      const totalAch = sumTotT > 0 ? (sumTotS / sumTotT) * 100 : 0;
+      const totalPayoutAll = sumSPay + sumHPay + sumLPay;
+      const totalPayPct = sumTotS > 0 ? (totalPayoutAll / sumTotS) * 100 : 0;
+
+      const totalSPayPct = sumTotS > 0 ? (sumSPay / sumTotS) * 100 : 0;
+      const totalHPayPct = sumTotS > 0 ? (sumHPay / sumTotS) * 100 : 0;
+      const totalLPayPct = sumTotS > 0 ? (sumLPay / sumTotS) * 100 : 0;
+
+      document.getElementById('t2_monthDetailTableFoot').innerHTML = `
+        <tr>
+          <td class="p-2 text-left border-blue-900 font-bold">TOTAL</td>
+          <td class="p-2 border-r border-blue-900">${formatINR(sumExclT)}</td>
+          <td class="p-2 border-r border-blue-900">${formatINR(sumGtT)}</td>
+          <td class="p-2 border-r border-blue-900 text-amber-300 font-bold">${formatINR(sumTotT)}</td>
+          <td class="p-2 border-r border-blue-900">${formatINR(sumExclS)}</td>
+          <td class="p-2 border-r border-blue-900">${formatINR(sumGtS)}</td>
+          <td class="p-2 border-r border-blue-900 text-amber-300 font-bold">${formatINR(sumTotS)}</td>
+          <td class="p-2 border-r border-blue-900 text-emerald-300 font-bold">${formatPct(totalAch)}</td>
+          <td class="p-2 border-r border-blue-900 text-white font-bold">${formatINR(sumSPay)}</td>
+          <td class="p-2 border-r border-blue-900 text-sky-200 font-bold">${formatPct(totalSPayPct)}</td>
+          <td class="p-2 border-r border-blue-900 text-white font-bold">${formatINR(sumHPay)}</td>
+          <td class="p-2 border-r border-blue-900 text-purple-200 font-bold">${formatPct(totalHPayPct)}</td>
+          <td class="p-2 border-r border-blue-900 text-white font-bold">${formatINR(sumLPay)}</td>
+          <td class="p-2 border-r border-blue-900 text-amber-200 font-bold">${formatPct(totalLPayPct)}</td>
+          <td class="p-2 border-r border-blue-900 text-rose-300 font-black">${formatINR(totalPayoutAll)}</td>
+          <td class="p-2 text-rose-300 font-black">${formatPct(totalPayPct)}</td>
+        </tr>`;
+
+      updateTab2NavyBlueChart(totTargetAll, totSaleAll, salesPayoutAll, hygienePayoutAll, loyaltyPayoutAll);
+    }
+
+    function updateTab2NavyBlueChart(target, sale, sPay, hPay, lPay) {
+      if (t2_directCategoryChart) t2_directCategoryChart.destroy();
+
+      const labels = ['Target', 'Ach. Sale', 'Sales Support', 'Hygiene Support', 'Loyalty Bonus'];
+      const achPct = target > 0 ? (sale / target) * 100 : 0;
+      const sPct = sale > 0 ? (sPay / sale) * 100 : 0;
+      const hPct = sale > 0 ? (hPay / sale) * 100 : 0;
+      const lPct = sale > 0 ? (lPay / sale) * 100 : 0;
+
+      const dataLakhs = [+(target / 100000).toFixed(2), +(sale / 100000).toFixed(2), null, null, null];
+      const dataActual = [null, null, sPay, hPay, lPay];
+
+      const maxLakhs = Math.max((target / 100000), (sale / 100000), 1);
+      const maxActual = Math.max(sPay, hPay, lPay, 1);
+
+      const ctx = document.getElementById('t2_directCategoryChart').getContext('2d');
+      t2_directCategoryChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Sales & Target (₹ Lakhs)',
+              data: dataLakhs,
+              backgroundColor: '#0b2861',
+              hoverBackgroundColor: '#173d87',
+              borderRadius: 4,
+              barPercentage: 0.6,
+              categoryPercentage: 0.7,
+              yAxisID: 'yLeft',
+              datalabels: {
+                align: 'top',
+                anchor: 'end',
+                offset: 4,
+                backgroundColor: '#ffffff',
+                borderColor: '#cbd5e1',
+                borderWidth: 1,
+                borderRadius: 4,
+                padding: { top: 2, bottom: 2, left: 4, right: 4 },
+                color: '#0b2861',
+                font: { weight: 'bold', size: 8 },
+                formatter: (v, context) => {
+                  if (v === null) return '';
+                  if (context.dataIndex === 0) return '₹' + v + ' L';
+                  if (context.dataIndex === 1) return '₹' + v + ' L [' + formatPct(achPct) + ']';
+                  return '';
+                }
+              }
+            },
+            {
+              label: 'Payout Breakdown (Actual ₹)',
+              data: dataActual,
+              backgroundColor: '#0b2861',
+              borderRadius: 4,
+              barPercentage: 0.6,
+              categoryPercentage: 0.7,
+              yAxisID: 'yRight',
+              datalabels: {
+                align: 'top',
+                anchor: 'end',
+                offset: 4,
+                backgroundColor: '#ffffff',
+                borderColor: '#cbd5e1',
+                borderWidth: 1,
+                borderRadius: 4,
+                padding: { top: 2, bottom: 2, left: 4, right: 4 },
+                color: '#0b2861',
+                font: { weight: 'bold', size: 8 },
+                formatter: (v, context) => {
+                  if (v === null) return '';
+                  if (context.dataIndex === 2) return '₹' + formatINR(v) + ' [' + formatPct(sPct) + ']';
+                  if (context.dataIndex === 3) return '₹' + formatINR(v) + ' [' + formatPct(hPct) + ']';
+                  if (context.dataIndex === 4) return '₹' + formatINR(v) + ' [' + formatPct(lPct) + ']';
+                  return '₹' + formatINR(v);
+                }
+              }
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          layout: { padding: { top: 20, bottom: 5 } },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#0b2861', font: { weight: 'bold', size: 8 }, maxRotation: 45, minRotation: 0 } },
+            yLeft: { type: 'linear', position: 'left', title: { display: false }, beginAtZero: true, suggestedMax: maxLakhs * 1.35, grid: { color: '#f1f5f9' }, ticks: { font: { size: 8 } } },
+            yRight: { type: 'linear', position: 'right', title: { display: false }, grid: { drawOnChartArea: false }, beginAtZero: true, suggestedMax: maxActual * 1.4, ticks: { font: { size: 8 } } }
+          }
+        }
+      });
+    }
+
+    function resetTab1Filters() {
+      document.getElementById('t1_monthFilter').value = 'ALL';
+      document.getElementById('t1_zoneFilter').value = 'ALL';
+      renderTab1();
+    }
+
+    function resetTab2Filters() {
+      document.getElementById('t2_zoneFilter').value = 'ALL';
+      populateTab2StoreFilter(getSecuredData());
+      document.getElementById('t2_storeFilter').value = 'ALL';
+      renderTab2();
+    }
+
+    document.getElementById('t1_monthFilter').addEventListener('change', renderTab1);
+    document.getElementById('t1_zoneFilter').addEventListener('change', renderTab1);
+
+    document.getElementById('t2_zoneFilter').addEventListener('change', function() {
+      const selectedZone = this.value;
+      const baseData = getSecuredData();
+      const filteredStores = selectedZone === 'ALL' ? baseData : baseData.filter(d => d.Zone === selectedZone);
+      populateTab2StoreFilter(filteredStores);
+      renderTab2();
+    });
+    document.getElementById('t2_storeFilter').addEventListener('change', renderTab2);
+
+    // Fast Excel File Upload with Spinner
+    document.getElementById('excelFileInput').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      showLoader(true);
+
+      setTimeout(() => {
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+          try {
+            const data = new Uint8Array(evt.target.result);
+            const workbook = XLSX.read(data, { 
+              type: 'array',
+              dense: true,
+              cellFormula: false,
+              cellHTML: false,
+              cellText: false
+            });
+            const firstSheet = workbook.SheetNames[0];
+            const rawArrayRows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { header: 1 });
+            processExcelRows(rawArrayRows);
+          } catch (err) {
+            alert('File read error: ' + err.message);
+          } finally {
+            showLoader(false);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }, 50);
+    });
+
+    // CRITICAL FIX: EXPORT WITH STRICT PASSWORD RE-LOCK
+    function exportStandaloneHTML() {
+      if (!rawStoreData || rawStoreData.length === 0) {
+        alert('Pehle Excel file upload karein taaki data save ho sake!');
+        return;
+      }
+
+      // Clone document to ensure pristine state
+      const clone = document.documentElement.cloneNode(true);
+
+      // 1. Force Password Modal visible in the exported HTML
+      const modal = clone.querySelector('#authOverlay');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.removeAttribute('style'); // Remove inline display:none
+      }
+
+      // 2. Force Dashboard to be blurred in the exported HTML
+      const dash = clone.querySelector('#mainDashboard');
+      if (dash) {
+        if (!dash.classList.contains('blur-sm')) {
+          dash.classList.add('blur-sm');
+        }
+      }
+
+      // 3. Clear any passcode input value
+      const pwdInput = clone.querySelector('#passcodeInput');
+      if (pwdInput) pwdInput.value = '';
+
+      let docHTML = clone.outerHTML;
+      const dataJSON = JSON.stringify(rawStoreData);
+
+      // Embed data into rawStoreData
+      docHTML = docHTML.replace(/let rawStoreData = \[.*?\];/s, 'let rawStoreData = ' + dataJSON + ';');
+
+      const blob = new Blob([docHTML], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Payout_Dashboard_Locked.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedData = loadFromLocalStorage();
+      if (savedData && savedData.length > 0 && rawStoreData.length === 0) {
+        rawStoreData = savedData;
+      }
+      
+      // Auto-unlock ONLY within the same active tab session
+      const savedAuth = sessionStorage.getItem('AUTH_USER_ZONE');
+      if (savedAuth && (savedAuth === "ADMIN" || savedAuth.startsWith("Zone"))) {
+        currentUserZone = savedAuth;
+        const overlay = document.getElementById('authOverlay');
+        overlay.classList.add('hidden');
+        overlay.style.removeProperty('display');
+        document.getElementById('mainDashboard').classList.remove('blur-sm');
+        applyZoneSecurity();
+      } else {
+        // Ensure fresh locked state
+        const overlay = document.getElementById('authOverlay');
+        overlay.classList.remove('hidden');
+        overlay.style.removeProperty('display');
+        document.getElementById('mainDashboard').classList.add('blur-sm');
+      }
+    });
+  </script>
+</body>
+</html>
